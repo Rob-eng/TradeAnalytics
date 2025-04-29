@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Relatório - GPTrading Analytics</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        body {
+            /* Usando o gradiente do seu HTML anterior */
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column; /* Permite centralizar e mostrar mensagem final */
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden; /* Evita scroll horizontal */
+            position: relative;
+        }
+
+        /* Fundo com linhas de dados estilizadas */
+        body::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* Usando a imagem SVG do seu HTML anterior */
+            background: url('data:image/svg+xml;utf8,<svg%20xmlns="http://www.w3.org/2000/svg"%20width="100%"%20height="100%"><g%20opacity="0.1"><path%20d="M0%200%20L200%20100%20L400%2050%20L600%20150%20L800%2080%20L1000%20120"%20stroke="%23228B22"%20stroke-width="2"%20fill="none"/><path%20d="M0%2050%20L200%20150%20L400%2080%20L600%20200%20L800%20100%20L1000%20160"%20stroke="%234d94ff"%20stroke-width="2"%20fill="none"/></g></svg>') no-repeat center center;
+            background-size: cover;
+            opacity: 0.5; /* Ajuste a opacidade conforme necessário */
+            z-index: 0;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #228B22; /* Verde do seu HTML */
+            text-shadow: 0 0 10px rgba(34, 139, 34, 0.5);
+            margin-bottom: 20px;
+            z-index: 1;
+            text-align: center;
+        }
+
+        .container {
+             /* Estilo do seu HTML anterior */
+            background: rgba(0, 0, 0, 0.7);
+            padding: 30px 40px; /* Aumentei padding lateral */
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            z-index: 1;
+            max-width: 550px; /* Aumentei um pouco */
+            width: 90%;
+            transition: opacity 0.5s ease, transform 0.5s ease; /* Adicionado transform */
+            transform: translateY(0); /* Estado inicial */
+        }
+
+        .container.hidden {
+            opacity: 0;
+            transform: translateY(-20px); /* Efeito de saída */
+            pointer-events: none; /* Impede interação quando oculto */
+        }
+
+        label {
+            font-size: 1.1rem; /* Ajustado */
+            color: #e0e0e0;
+            margin-bottom: 8px; /* Ajustado */
+            display: block;
+            text-align: left; /* Alinha label à esquerda */
+        }
+
+        select, input[type="file"] {
+            width: 100%;
+            padding: 12px; /* Aumentado */
+            border-radius: 8px; /* Mais arredondado */
+            border: 1px solid #444; /* Borda mais suave */
+            background-color: #2a2a3a; /* Fundo escuro */
+            color: #e0e0e0;
+            font-size: 1rem;
+            margin-bottom: 15px; /* Espaço abaixo */
+            box-sizing: border-box;
+        }
+
+        select:focus, input[type="file"]:focus {
+            outline: none;
+            border-color: #228B22; /* Cor verde no foco */
+            box-shadow: 0 0 8px rgba(34, 139, 34, 0.6);
+        }
+
+        /* Estilo customizado para input file */
+        input[type="file"]::file-selector-button {
+            padding: 10px 15px;
+            margin-right: 15px; /* Mais espaço */
+            background: linear-gradient(90deg, #228B22, #1c6b1c); /* Gradiente verde */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+        }
+        input[type="file"]::file-selector-button:hover {
+            background: linear-gradient(90deg, #1c6b1c, #228B22);
+            transform: translateY(-1px);
+        }
+
+        button[type="submit"], .btn-new-report {
+             /* Estilo do seu HTML anterior */
+            background: linear-gradient(90deg, #228B22, #4d94ff);
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            color: #fff;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            display: inline-flex; /* Para centralizar com margin auto */
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 20px; /* Espaço acima do botão */
+            width: auto; /* Largura automática */
+        }
+
+        button[type="submit"]:hover, .btn-new-report:hover {
+             /* Estilo do seu HTML anterior */
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(34, 139, 34, 0.7), 0 0 15px rgba(77, 148, 255, 0.7);
+        }
+
+        button[type="submit"]::before {
+             /* Estilo do seu HTML anterior */
+            content: '📊'; /* Mudei o ícone */
+            font-size: 1.4rem; /* Ajustado */
+        }
+        button[type="submit"]:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: scale(1);
+            box-shadow: none;
+        }
+         button[type="submit"]:disabled::before {
+            opacity: 0.5;
+         }
+
+        .upload-section {
+            display: none; /* Oculto por padrão */
+            margin-top: 15px;
+            padding-top: 10px; /* Espaço interno */
+            /* border: 1px dashed #ccc; */ /* Removido para visual mais limpo */
+            border-radius: 4px;
+            text-align: left; /* Alinha conteúdo à esquerda */
+        }
+        .upload-section.visible {
+             display: block;
+         }
+
+        /* Mensagens Flash (Adaptadas ao estilo escuro) */
+        .flash-messages {
+            list-style: none;
+            padding: 0;
+            margin: 0 auto 20px auto; /* Centraliza e adiciona margem */
+            max-width: 550px; /* Mesma largura do container */
+            width: 90%;
+            z-index: 2; /* Garante que fique acima do fundo */
+            position: relative; /* Necessário para z-index */
+        }
+        .flash-messages li {
+            padding: 12px 18px; /* Mais padding */
+            margin-bottom: 12px; /* Mais espaço */
+            border-radius: 8px; /* Mais arredondado */
+            border: 1px solid transparent;
+            text-align: center;
+            font-weight: 500; /* Médio */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        /* Cores adaptadas do seu estilo anterior */
+        .flash-messages .success { /* Não usado, mas mantido */
+            background-color: rgba(34, 139, 34, 0.8); /* Verde com transparência */
+            border-color: rgba(34, 139, 34, 1);
+            color: #fff;
+        }
+        .flash-messages .error {
+            background-color: rgba(220, 53, 69, 0.8); /* Vermelho com transparência */
+            border-color: rgba(220, 53, 69, 1);
+            color: #fff;
+        }
+         .flash-messages .warning {
+            background-color: rgba(255, 193, 7, 0.8); /* Amarelo com transparência */
+            border-color: rgba(255, 193, 7, 1);
+            color: #333; /* Texto escuro para contraste */
+        }
+         .flash-messages .info { /* Não usado, mas mantido */
+            background-color: rgba(23, 162, 184, 0.8); /* Azul info com transparência */
+            border-color: rgba(23, 162, 184, 1);
+            color: #fff;
+        }
+
+        /* Estilo do carregamento (do seu HTML anterior) */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: none; /* Começa oculto */
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            flex-direction: column; /* Para texto abaixo do spinner */
+            opacity: 0; /* Começa transparente */
+            transition: opacity 0.3s ease;
+        }
+        .loading-overlay.visible {
+             display: flex;
+             opacity: 1;
+         }
+
+        .loading-circle {
+            width: 60px;
+            height: 60px;
+            border: 6px solid #555; /* Cinza mais escuro */
+            border-top: 6px solid #228B22; /* Verde */
+            border-right: 6px solid #4d94ff; /* Azul */
+            border-radius: 50%;
+            animation: spin 1.5s linear infinite;
+        }
+
+        .loading-text {
+            color: #e0e0e0;
+            font-size: 1.2rem;
+            margin-top: 20px; /* Mais espaço */
+            text-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Estilo da mensagem final (do seu HTML anterior) */
+        .report-message {
+            /* display: none; /* Usar classe 'hidden' */
+            background: rgba(0, 0, 0, 0.7);
+            padding: 30px 40px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+            text-align: center;
+            z-index: 1;
+            max-width: 550px;
+            width: 90%;
+            color: #e0e0e0;
+            font-size: 1rem;
+            line-height: 1.6; /* Melhor leitura */
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            transform: translateY(20px); /* Efeito de entrada */
+            opacity: 0; /* Começa oculto */
+        }
+        .report-message.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .report-message b {
+            color: #228B22; /* Verde destacado */
+        }
+         .report-message p {
+             margin-bottom: 25px; /* Espaço antes do botão */
+         }
+
+        .hidden {
+            display: none !important; /* Garante que fique oculto */
+        }
+
+        .file-limit-note {
+            font-size: 0.85em;
+            color: #aaa; /* Cinza claro */
+            margin-top: 5px;
+            display: block;
+            text-align: left;
+        }
+
+    </style>
+</head>
+<body>
+    <!-- Área para exibir mensagens flash (movida para fora do container principal) -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <ul class="flash-messages">
+            {% for category, message in messages %}
+                <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+            </ul>
+        {% endif %}
+    {% endwith %}
+
+    <!-- Container do Formulário -->
+    <div class="container visible" id="uploadContainer">
+        <h1>GPTrading Analytics</h1>
+        <!-- Formulário aponta para a rota '/' do Flask -->
+        <form id="uploadForm" method="POST" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="upload_type">Selecione o tipo de upload:</label>
+                <!-- Usando os names corretos para o Flask: 'upload_type' -->
+                <select id="upload_type" name="upload_type" required onchange="toggleUploadFields()">
+                    <option value="">-- Selecione --</option>
+                    <option value="single">Arquivo Único (Excel: .xlsx, .xls)</option>
+                    <option value="multiple">Múltiplos Arquivos (CSV: .csv)</option>
+                </select>
+            </div>
+
+            <!-- Seção para Upload Único (Excel) -->
+            <div id="single-upload-section" class="upload-section">
+                <label for="file_single">Selecione o arquivo Excel:</label>
+                <!-- Usando os names corretos para o Flask: 'file_single' -->
+                <input type="file" id="file_single" name="file_single" accept=".xlsx, .xls">
+                <small class="file-limit-note">Limite por arquivo/requisição: {{ MAX_FILE_SIZE_MB }}MB</small>
+            </div>
+
+            <!-- Seção para Upload Múltiplo (CSV) -->
+            <div id="multiple-upload-section" class="upload-section hidden">
+                <label for="files_multiple">Selecione os arquivos CSV:</label>
+                 <!-- Usando os names corretos para o Flask: 'files_multiple' -->
+                <input type="file" id="files_multiple" name="files_multiple" multiple accept=".csv">
+                 <small class="file-limit-note">Limite total por requisição: {{ MAX_FILE_SIZE_MB }}MB</small>
+            </div>
+
+            <!-- Botão submit agora é um <button> para melhor controle -->
+            <button type="submit" id="submit-button">Gerar Relatório</button>
+        </form>
+        <!-- Mensagem de erro do JS movida para baixo (ou usar Flash) -->
+        <!-- <p class="error" id="errorMessage"></p> -->
+    </div>
+
+    <!-- Overlay de carregamento -->
+    <div class="loading-overlay hidden" id="loadingOverlay">
+        <div>
+            <div class="loading-circle"></div>
+            <p class="loading-text">Processando relatório...</p>
+        </div>
+    </div>
+
+    <!-- Mensagem final com botão para novo relatório -->
+    <div class="report-message hidden" id="reportMessage">
+        <p>
+            <b>Atenção:</b> Estes dados referem-se ao passado e análises de backtesting. Resultados passados não são garantia de resultados futuros. Opere com consciência e gerenciamento de risco.
+            <!-- Linha do PIX comentada como no seu original -->
+			<!--<br/><br/>Gostou do relatório? Está louco para pagar uma pizza para o cara que fez essas figurinhas?<br/>Manda um PIX: <b>67984013193</b>.-->
+        </p>
+        <button class="btn-new-report" onclick="startNewReport()">Gerar Novo Relatório</button>
+    </div>
+
+    <script>
+        const uploadForm = document.getElementById('uploadForm');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const uploadContainer = document.getElementById('uploadContainer');
+        const reportMessage = document.getElementById('reportMessage');
+        // const errorMessage = document.getElementById('errorMessage'); // Não mais usado diretamente
+        const uploadTypeSelect = document.getElementById('upload_type'); // Nome correto do select
+        const singleUploadSection = document.getElementById('single-upload-section'); // ID correto
+        const multipleUploadSection = document.getElementById('multiple-upload-section'); // ID correto
+        const fileSingleInput = document.getElementById('file_single'); // ID correto
+        const filesMultipleInput = document.getElementById('files_multiple'); // ID correto
+        const submitButton = document.getElementById('submit-button');
+
+        function toggleUploadFields() {
+            const selectedType = uploadTypeSelect.value;
+            // Oculta ambas as seções
+            singleUploadSection.classList.remove('visible');
+            singleUploadSection.classList.add('hidden');
+            multipleUploadSection.classList.remove('visible');
+            multipleUploadSection.classList.add('hidden');
+
+            // Limpa e ajusta 'required'
+            fileSingleInput.value = '';
+            filesMultipleInput.value = '';
+            fileSingleInput.required = false;
+            filesMultipleInput.required = false;
+
+            if (selectedType === 'single') {
+                singleUploadSection.classList.add('visible');
+                singleUploadSection.classList.remove('hidden');
+                fileSingleInput.required = true;
+            } else if (selectedType === 'multiple') {
+                multipleUploadSection.classList.add('visible');
+                multipleUploadSection.classList.remove('hidden');
+                filesMultipleInput.required = true;
+            }
+        }
+
+        // Inicializa corretamente
+        toggleUploadFields();
+
+        uploadForm.addEventListener('submit', function(e) {
+            // Validação básica no JS (a validação principal é no Flask)
+            const selectedType = uploadTypeSelect.value;
+            let filesSelected = false;
+            if (selectedType === 'single' && fileSingleInput.files.length > 0) {
+                 filesSelected = true;
+             } else if (selectedType === 'multiple' && filesMultipleInput.files.length > 0) {
+                 filesSelected = true;
+             }
+
+             if (!selectedType) {
+                 // Idealmente usar flash message do Flask para "Selecione um tipo"
+                 console.error("Nenhum tipo de upload selecionado.");
+                 e.preventDefault(); // Impede envio se tipo não selecionado
+                 return;
+             }
+
+             if (!filesSelected) {
+                  // Idealmente usar flash message do Flask para "Nenhum arquivo selecionado"
+                 console.error("Nenhum arquivo selecionado para o tipo escolhido.");
+                 e.preventDefault(); // Impede envio se arquivo não selecionado
+                 return;
+             }
+
+            // Se chegou aqui, parece válido para o JS, mostra o loading
+            loadingOverlay.classList.remove('hidden');
+            loadingOverlay.classList.add('visible');
+            uploadContainer.style.opacity = '0.5'; // Diminui opacidade do form
+            submitButton.disabled = true;
+            submitButton.textContent = 'Processando...'; // Muda texto do botão
+            // O formulário será enviado normalmente (sem preventDefault)
+            // O backend Flask processará e retornará o PDF ou uma página com erro (flash)
+        });
+
+        // Função para resetar a UI e permitir novo relatório
+        // Não será chamada automaticamente pelo AJAX, mas pode ser usada se necessário
+        window.startNewReport = function() {
+            // Esconde a mensagem final
+            reportMessage.classList.remove('visible');
+            reportMessage.classList.add('hidden');
+            // Mostra o formulário novamente
+            uploadContainer.classList.remove('hidden');
+            uploadContainer.classList.add('visible');
+            uploadContainer.style.opacity = '1';
+            submitButton.disabled = false; // Reabilita botão
+            submitButton.innerHTML = 'Gerar Relatório'; // Restaura texto e ícone se necessário
+            // Reseta o formulário
+            uploadForm.reset();
+            // Reseta os campos de upload visíveis
+            toggleUploadFields();
+            // Limpa mensagens flash (se necessário via JS, mas o reload da página faz isso)
+            const flashMessages = document.querySelector('.flash-messages');
+            if (flashMessages) {
+                flashMessages.innerHTML = '';
+            }
+        };
+
+        // Lógica para lidar com a resposta do formulário (NÃO MAIS NECESSÁRIA COM SUBMIT PADRÃO)
+        // O código AJAX foi removido porque o envio padrão do formulário funciona melhor
+        // para receber o download do arquivo PDF ou a página recarregada com mensagens flash.
+
+    </script>
+</body>
+</html>

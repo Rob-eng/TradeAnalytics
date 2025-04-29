@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # Serviço da aplicação Flask/Gunicorn
+  web:
+    build: . # Constrói a imagem a partir do Dockerfile no diretório atual
+    container_name: analise_trading_flask_app # Nome do contêiner
+    restart: always # Reinicia o contêiner se ele parar
+    environment:
+      # Defina variáveis de ambiente aqui, se necessário
+      # Exemplo: FLASK_SECRET_KEY: 'sua_chave_super_secreta_aqui'
+      SECRET_KEY: ${SECRET_KEY} # Lê da variável de ambiente do host ou de um .env
+    # Não expomos a porta diretamente para o host, o Nginx fará isso
+    expose:
+      - "5000" # Porta interna do Gunicorn
+    # Volumes são geralmente evitados em produção para a imagem final,
+    # mas podem ser úteis para desenvolvimento ou logs persistentes (não necessário aqui)
+    # volumes:
+    #   - .:/app # Monta código local (SOMENTE DESENVOLVIMENTO)
+    networks:
+      - app-network # Conecta a uma rede customizada
+
+  # Serviço Nginx (Proxy Reverso)
+  nginx:
+    image: nginx:1.25-alpine # Imagem oficial leve do Nginx
+    container_name: analise_trading_nginx
+    restart: always
+    ports:
+      - "80:80" # Mapeia porta 80 do host para porta 80 do contêiner Nginx
+      # Se você configurar HTTPS, mapearia a 443 também
+      # - "443:443"
+    volumes:
+      # Monta o arquivo de configuração customizado do Nginx
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro # :ro = read-only
+      # Se você tivesse arquivos estáticos para servir diretamente pelo Nginx:
+      # - ./static:/usr/share/nginx/html/static:ro
+    depends_on:
+      - web # Garante que o 'web' inicie antes do 'nginx'
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge # Rede padrão do Docker Compose

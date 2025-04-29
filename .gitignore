@@ -1,0 +1,29 @@
+# Ambiente virtual
+venv/
+.venv/
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Arquivos sensíveis (se aplicável)
+.env
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+
+# Diretório de relatórios gerados
+relatorios/
+AmbP2/
+
+# Logs e temporários
+*.log
+*.tmp
+
+# OS specific
+.DS_Store
+Thumbs.db

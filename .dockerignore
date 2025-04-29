@@ -1,0 +1,32 @@
+# Ambiente virtual
+venv/
+.venv/
+
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Docker / Compose
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Git
+.git/
+.gitignore
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+
+# Diretório de relatórios (gerado dinamicamente)
+relatorios/
+
+# Arquivos temporários ou específicos do OS
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
