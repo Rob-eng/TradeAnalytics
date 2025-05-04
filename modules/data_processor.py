@@ -114,12 +114,16 @@ def _clean_numeric_result_column(df: pd.DataFrame, col_name: str) -> pd.DataFram
     else:
          logger.debug(f"Valores (amostra) antes da limpeza de '{col_name}':\n{df[[col_name, temp_col]].head(10).to_string()}")
 
-    # --- LÓGICA DE LIMPEZA REVISADA (Assume '.' como decimal) ---
+    # --- LÓGICA DE LIMPEZA SIMPLIFICADA ---
     # 1. Remover espaços internos
     df[temp_col] = df[temp_col].str.replace(' ', '', regex=False)
-    # 2. Remover separador de MILHAR (assumindo que é ',')
+    # 2. Remover PONTOS (tratados como milhar ou lixo)
+    df[temp_col] = df[temp_col].str.replace('.', '', regex=False)
+    # 3. Remover VÍRGULAS (tratadas como milhar ou lixo)
     df[temp_col] = df[temp_col].str.replace(',', '', regex=False)
-    # 3. NÃO REMOVER PONTO - o ponto é considerado decimal por pd.to_numeric
+    # 4. Opcional: Remover outros caracteres não numéricos (exceto sinal de menos)
+    #    Se houver outros símbolos como 'R$', '%', etc.
+    # df[temp_col] = df[temp_col].str.replace(r'[^\d\-]', '', regex=True)
 
     # Log DEPOIS da limpeza
     logger.debug(f"Valores após limpeza de string para '{col_name}' (antes de to_numeric):\n{df[[debug_col_name if debug_col_name in df.columns else col_name, temp_col]].head(10).to_string()}")
@@ -161,8 +165,7 @@ def _clean_numeric_result_column(df: pd.DataFrame, col_name: str) -> pd.DataFram
 
     # --- AJUSTE FINAL: Log da soma com mais precisão ---
     soma_final = df[col_name].sum()
-    logger.info(f"Coluna '{col_name}' limpa e convertida para float. Soma após limpeza: {soma_final:.2f}") # Mantém 2 casas decimais
-    # Log adicional para verificar a ordem de grandeza
+    logger.info(f"Coluna '{col_name}' (tratada como inteiros) limpa e convertida para float. Soma após limpeza: {soma_final:.2f}") # Mantém 2 casas decimais
     logger.debug(f"Soma completa (debug): {soma_final}")
 
 
