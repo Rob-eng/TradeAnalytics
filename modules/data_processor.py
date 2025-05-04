@@ -121,6 +121,12 @@ def _clean_numeric_result_column(
              raise KeyError(f"Colunas '{source_col_for_cleaning}' e '{debug_col_name}' não encontradas para limpeza.")
 
 
+    # --- LÓGICA DE LIMPEZA REVISADA (Assume '.' como decimal) ---
+    # 1. Remover espaços internos
+    df[temp_col] = df[temp_col].str.replace(' ', '', regex=False)
+    # 2. Remover separador de MILHAR (assumindo que é ',')
+    df[temp_col] = df[temp_col].str.replace(',', '', regex=False)
+    # 3. NÃO REMOVER PONTO - o ponto é considerado decimal por pd.to_numeric
     # --- LÓGICA DE LIMPEZA SIMPLIFICADA (Passo a Passo com Logs) ---
     try:
         # 1. Remover espaços internos
@@ -182,6 +188,8 @@ def _clean_numeric_result_column(
 
     # --- Log da soma ---
     soma_final = df[col_name].sum()
+    logger.info(f"Coluna '{col_name}' limpa e convertida para float. Soma após limpeza: {soma_final:.2f}") # Mantém 2 casas decimais
+    # Log adicional para verificar a ordem de grandeza
     logger.info(f"Coluna '{col_name}' (tratada como inteiros) limpa e convertida para float. Soma após limpeza: {soma_final:.2f}")
     logger.debug(f"Soma completa (debug): {soma_final}")
     logger.debug(f"--- Finalizada Limpeza Numérica para Coluna: '{col_name}' ---")
