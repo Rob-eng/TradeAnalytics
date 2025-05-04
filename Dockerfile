@@ -42,4 +42,4 @@ EXPOSE 5000
 # bind 0.0.0.0: Permite conexões de fora do contêiner (essencial)
 # workers 4: Número de processos workers (ajuste conforme recursos do VPS)
 # app:app : Nome do arquivo (app.py) : nome da instância Flask (app)
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "500", "app:app"]
