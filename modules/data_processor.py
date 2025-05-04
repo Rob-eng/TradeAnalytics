@@ -84,77 +84,100 @@ def _find_and_rename_result_column(
 
 def _clean_numeric_result_column(
     df: pd.DataFrame,
-    col_name: str
+    col_name: str,
+    input_format: Literal['excel', 'csv'] # Indica a origem para regras de limpeza
     ) -> pd.DataFrame:
     """
-    Converte a coluna de resultado especificada para numérico (float),
-    assumindo que os valores originais representam NÚMEROS INTEIROS,
-    podendo conter espaços, pontos ou vírgulas como separadores de milhar.
-    Inclui logging detalhado passo a passo.
+    Converte a coluna de resultado especificada para numérico, tratando como inteiro.
+
+    Aplica regras de limpeza de separadores (ponto/vírgula) baseadas no
+    formato de entrada ('excel' ou 'csv'), converte para float inicial,
+    depois para inteiro (truncando decimais) e finalmente para float novamente
+    para manter a consistência do tipo de dados no DataFrame. Preenche erros/NaNs com 0.
+
+    Args:
+        df: DataFrame de entrada.
+        col_name: Nome da coluna de resultado a ser limpa (ex: RESULT_COLUMN_NAME).
+        input_format: 'excel' ou 'csv', para determinar a regra de limpeza.
+
+    Returns:
+        DataFrame com a coluna de resultado limpa como float (representando inteiros).
+
+    Raises:
+        KeyError: Se a coluna `col_name` não for encontrada no DataFrame.
     """
     if col_name not in df.columns:
         logger.error(f"Tentando limpar coluna numérica '{col_name}', mas ela não existe no DataFrame.")
         raise KeyError(f"Coluna '{col_name}' não encontrada para limpeza numérica.")
 
     # Nomes das colunas temporárias e de debug
-    debug_col_name = f'{col_name}_Original_Debug'
-    temp_col = col_name + '_Temp_Clean' # Nome mais claro para a coluna de limpeza
-    numeric_col = col_name + '_Numeric'
+    debug_col_name = f'{col_name}_Original_Debug' # Coluna com valor original em string
+    temp_col = col_name + '_Temp_Clean'         # Coluna para limpeza passo a passo
+    numeric_col = col_name + '_Numeric'       # Coluna após to_numeric inicial
+
     # Coluna fonte para limpeza inicial (geralmente a coluna já renomeada)
     source_col_for_cleaning = col_name
 
-    logger.debug(f"--- Iniciando Limpeza Numérica para Coluna: '{col_name}' ---")
+    logger.debug(f"--- Iniciando Limpeza Numérica para Coluna: '{col_name}' (Formato: {input_format}) ---")
 
-    # Garante que é string e remove espaços iniciais/finais
-    # Cria a coluna temporária a partir da coluna fonte
+    # Garante que a coluna temporária existe e é string, tratando KeyErrors
     try:
         df[temp_col] = df[source_col_for_cleaning].astype(str).str.strip()
+        # Log da amostra inicial (usa valor original se disponível)
+        log_source_col = debug_col_name if debug_col_name in df.columns else source_col_for_cleaning
+        logger.debug(f"Amostra inicial de '{log_source_col}' (antes de limpar string):\n{df[log_source_col].head(15).to_string(index=False)}")
         logger.debug(f"Amostra inicial de '{temp_col}' (após strip):\n{df[temp_col].head(15).to_string(index=False)}")
     except KeyError:
         logger.error(f"Coluna fonte '{source_col_for_cleaning}' não encontrada para iniciar a limpeza.")
-        # Tenta usar a coluna de debug se existir como fallback extremo
-        if debug_col_name in df.columns:
-             logger.warning(f"Tentando usar a coluna de debug '{debug_col_name}' como fonte.")
-             df[temp_col] = df[debug_col_name].astype(str).str.strip()
-             logger.debug(f"Amostra inicial de '{temp_col}' (do debug, após strip):\n{df[temp_col].head(15).to_string(index=False)}")
-        else:
-             raise KeyError(f"Colunas '{source_col_for_cleaning}' e '{debug_col_name}' não encontradas para limpeza.")
+        raise # Re-levanta o erro, pois não podemos continuar
 
-
-    # --- LÓGICA DE LIMPEZA REVISADA (Assume '.' como decimal) ---
-    # 1. Remover espaços internos
-    df[temp_col] = df[temp_col].str.replace(' ', '', regex=False)
-    # 2. Remover separador de MILHAR (assumindo que é ',')
-    df[temp_col] = df[temp_col].str.replace(',', '', regex=False)
-    # 3. NÃO REMOVER PONTO - o ponto é considerado decimal por pd.to_numeric
-    # --- LÓGICA DE LIMPEZA SIMPLIFICADA (Passo a Passo com Logs) ---
+    # --- LÓGICA DE LIMPEZA CONDICIONAL ---
     try:
-        # 1. Remover espaços internos
+        # 1. Remover espaços internos (comum a ambos)
         df[temp_col] = df[temp_col].str.replace(' ', '', regex=False)
         logger.debug(f"Amostra de '{temp_col}' após replace(' '):\n{df[temp_col].head(15).to_string(index=False)}")
 
-        # 2. Remover PONTOS (tratados como milhar ou lixo)
-        df[temp_col] = df[temp_col].str.replace('.', '', regex=False)
-        logger.debug(f"Amostra de '{temp_col}' após replace('.'):\n{df[temp_col].head(15).to_string(index=False)}")
+        if input_format == 'csv':
+            # Formato CSV (Assume ',' como DECIMAL, '.' como MILHAR - padrão Profit Brasil)
+            logger.debug("Limpando CSV: Removendo '.', trocando ',' por '.'")
+            # 2a. Remover separador de MILHAR (assumindo '.')
+            df[temp_col] = df[temp_col].str.replace('.', '', regex=False)
+            logger.debug(f"Amostra de '{temp_col}' após replace('.'):\n{df[temp_col].head(15).to_string(index=False)}")
+            # 3a. Substituir separador DECIMAL (assumindo ',') por '.' para to_numeric
+            df[temp_col] = df[temp_col].str.replace(',', '.', regex=False)
+            logger.debug(f"Amostra de '{temp_col}' após replace(',' -> '.'):\n{df[temp_col].head(15).to_string(index=False)}")
 
-        # 3. Remover VÍRGULAS (tratadas como milhar ou lixo)
-        df[temp_col] = df[temp_col].str.replace(',', '', regex=False)
-        logger.debug(f"Amostra de '{temp_col}' após replace(','):\n{df[temp_col].head(15).to_string(index=False)}")
+        elif input_format == 'excel':
+            # Formato Excel (Assume '.' como DECIMAL, ',' como MILHAR ou ausente)
+            logger.debug("Limpando Excel: Removendo ',', mantendo '.'")
+            # 2b. Remover separador de MILHAR (assumindo ',')
+            df[temp_col] = df[temp_col].str.replace(',', '', regex=False)
+            logger.debug(f"Amostra de '{temp_col}' após replace(','):\n{df[temp_col].head(15).to_string(index=False)}")
+            # 3b. Ponto é mantido e tratado como decimal por to_numeric
+        else:
+            logger.warning(f"Formato de entrada desconhecido '{input_format}' para limpeza numérica. Usando padrão Excel (remove ',').")
+            df[temp_col] = df[temp_col].str.replace(',', '', regex=False)
+            logger.debug(f"Amostra de '{temp_col}' após replace(',' - fallback):\n{df[temp_col].head(15).to_string(index=False)}")
 
-        # 4. Opcional: Remover outros caracteres não numéricos (exceto sinal de menos)
-        # df[temp_col] = df[temp_col].str.replace(r'[^\d\-]', '', regex=True)
-        # logger.debug(f"Amostra de '{temp_col}' após regex [^\\d\\-]:\n{df[temp_col].head(15).to_string(index=False)}")
+        # 4. Opcional: Remover outros caracteres não numéricos (exceto sinal de menos e ponto decimal se for Excel)
+        #    Pode ser necessário se houver R$, %, etc.
+        # if input_format == 'excel':
+        #     df[temp_col] = df[temp_col].str.replace(r'[^\d\.\-]', '', regex=True) # Mantém ponto e hífen
+        # else: # CSV, ponto já foi removido
+        #     df[temp_col] = df[temp_col].str.replace(r'[^\d\.\-]', '', regex=True) # Mantém ponto (que veio da vírgula) e hífen
+        # logger.debug(f"Amostra de '{temp_col}' após regex final:\n{df[temp_col].head(15).to_string(index=False)}")
 
     except Exception as e_clean:
          logger.error(f"Erro durante as etapas de limpeza de string para '{temp_col}': {e_clean}", exc_info=True)
-         # Continua para to_numeric, que provavelmente falhará para essas linhas
+         # Define como vazio para provavelmente virar NaN em to_numeric
+         df[temp_col] = ''
 
-    # Tenta converter para numérico (float ainda é seguro aqui)
+
+    # Tenta converter para numérico (float)
     df[numeric_col] = pd.to_numeric(df[temp_col], errors='coerce')
-    logger.debug(f"Amostra de '{numeric_col}' após pd.to_numeric:\n{df[numeric_col].head(15).to_string(index=False)}")
+    logger.debug(f"Amostra de '{numeric_col}' após pd.to_numeric (float):\n{df[numeric_col].head(15).to_string(index=False)}")
 
-
-    # --- Logs de Falha e Sucesso ---
+    # --- Logs de Falha na Conversão Numérica ---
     nan_mask = df[numeric_col].isna()
     nan_conversion_count = nan_mask.sum()
     if nan_conversion_count > 0:
@@ -166,31 +189,26 @@ def _clean_numeric_result_column(
              failed_values_original = df.loc[nan_mask, debug_col_name].unique()
              logger.warning(f"  Valores ORIGINAIS ('{debug_col_name}') correspondentes: {list(failed_values_original[:10])}")
 
-    valid_mask = df[numeric_col].notna()
-    if valid_mask.any():
-        source_debug_col = debug_col_name if debug_col_name in df.columns else source_col_for_cleaning
-        sample_valid = df[valid_mask][[source_debug_col, numeric_col]].head(5)
-        logger.debug(f"Exemplos de conversão numérica BEM-SUCEDIDA para '{col_name}':")
-        for _, row in sample_valid.iterrows():
-             logger.debug(f"  Original ('{source_debug_col}'): '{row[source_debug_col]}' -> Convertido: {row[numeric_col]}")
-
-
-    # Preenche NaNs e converte tipo
-    df[col_name] = df[numeric_col].fillna(0).astype(float)
+    # --- CONVERSÃO FINAL PARA INTEIRO E DEPOIS FLOAT ---
+    # 1. Preenche NaNs com 0
+    # 2. Converte para Inteiro (isso TRUNCARÁ qualquer parte decimal, ex: 354.5 vira 354)
+    # 3. Converte de volta para Float para manter o tipo no DataFrame
+    try:
+        # Usar pd.Int64Dtype() permite inteiros com NA, mas como já fizemos fillna(0), int padrão é ok.
+        df[col_name] = df[numeric_col].fillna(0).astype(int).astype(float)
+        logger.debug(f"Amostra da coluna final '{col_name}' após fillna(0).astype(int).astype(float):\n{df[col_name].head(15).to_string(index=False)}")
+    except ValueError as e_cast:
+        # Pode ocorrer se algum valor não puder ser convertido para int mesmo após to_numeric (raro)
+        logger.error(f"Erro ao converter coluna '{numeric_col}' para inteiro: {e_cast}. Mantendo como float após fillna(0).")
+        df[col_name] = df[numeric_col].fillna(0).astype(float) # Fallback para float
 
     # Remove colunas temporárias
     columns_to_drop = [temp_col, numeric_col]
-    # Não remove debug_col aqui, deixa para a função chamadora decidir
-    # if debug_col_name in df.columns:
-    #     columns_to_drop.append(debug_col_name)
     df = df.drop(columns=columns_to_drop, errors='ignore')
-
 
     # --- Log da soma ---
     soma_final = df[col_name].sum()
-    logger.info(f"Coluna '{col_name}' limpa e convertida para float. Soma após limpeza: {soma_final:.2f}") # Mantém 2 casas decimais
-    # Log adicional para verificar a ordem de grandeza
-    logger.info(f"Coluna '{col_name}' (tratada como inteiros) limpa e convertida para float. Soma após limpeza: {soma_final:.2f}")
+    logger.info(f"Coluna '{col_name}' (formato {input_format}, final int->float) limpa. Soma: {soma_final:.2f}")
     logger.debug(f"Soma completa (debug): {soma_final}")
     logger.debug(f"--- Finalizada Limpeza Numérica para Coluna: '{col_name}' ---")
 
@@ -374,7 +392,7 @@ def processar_dados_excel(
     # 4. Limpar Coluna de Resultado para Numérico
     try:
         # Remove o parâmetro input_format
-        banco_geral = _clean_numeric_result_column(banco_geral, RESULT_COLUMN_NAME)
+        banco_geral = _clean_numeric_result_column(banco_geral, RESULT_COLUMN_NAME, input_format='excel')
     except KeyError as e:
          # Isso não deveria acontecer se _find_and_rename funcionou, mas por segurança
          logger.error(f"Erro inesperado ao tentar limpar resultado: {e}", exc_info=True)
@@ -554,7 +572,7 @@ def processar_dados_csv(
                 continue
 
             # 6. Limpar Coluna de Resultado para Numérico
-            df = _clean_numeric_result_column(df, RESULT_COLUMN_NAME)
+            df = _clean_numeric_result_column(df, RESULT_COLUMN_NAME, input_format='csv')
 
             # 7. Selecionar Colunas Finais (garantir ordem e presença das essenciais)
             colunas_essenciais = ['Abertura', 'Fechamento', ROBO_COLUMN_NAME, RESULT_COLUMN_NAME]
