@@ -76,81 +76,88 @@ def _salvar_grafico(fig, output_path: str, nome_grafico: str) -> Optional[str]:
 def _calcular_melhor_intervalo(
     df_intervalo: pd.DataFrame,
     result_col: str,
-    minutos_col: str = 'Minutos_Dia'
+    minutos_col: str = 'Minutos_Dia',
+    min_minuto: int = 8 * 60,    # Minuto inicial padrão (8:00)
+    max_minuto: int = 18 * 60 -1 # Minuto final padrão (17:59) - Ajustado para ser inclusivo
 ) -> Tuple[Optional[int], Optional[int], float]:
     """
-    Calcula o intervalo de minutos contíguo com o maior ganho acumulado.
+    Calcula o intervalo de minutos contíguo com o maior ganho acumulado
+    usando um algoritmo O(N) baseado em Kadane.
 
     Args:
         df_intervalo: DataFrame filtrado (ex: por robô, ou geral 8-18h).
                       Deve conter as colunas `result_col` e `minutos_col`.
         result_col: Nome da coluna com os resultados numéricos.
         minutos_col: Nome da coluna com os minutos do dia da operação.
+        min_minuto: O primeiro minuto a ser considerado no intervalo total.
+        max_minuto: O último minuto a ser considerado no intervalo total.
 
     Returns:
         Uma tupla contendo:
-        - melhor_inicio: Minuto de início do melhor intervalo (ou None).
-        - melhor_fim: Minuto de fim do melhor intervalo (ou None).
-        - max_ganho: O ganho máximo encontrado nesse intervalo (ou -infinito se nenhum válido).
-                     Retorna 0.0 se nenhum intervalo for encontrado.
-    """
-    melhor_inicio: Optional[int] = None
-    melhor_fim: Optional[int] = None
-    max_ganho: float = -np.inf # Inicia com -infinito para garantir que o primeiro ganho válido seja maior
-    primeiro_intervalo_valido = True
-
+        - melhor_inicio_global: Minuto de início do melhor intervalo (ou None).
+        - melhor_fim_global: Minuto de fim do melhor intervalo (ou None).
+        - max_soma_global: O ganho máximo encontrado nesse intervalo (0.0 se todos negativos ou nenhum)."""
     if df_intervalo.empty or minutos_col not in df_intervalo.columns or result_col not in df_intervalo.columns:
-        logger.warning("DataFrame vazio ou colunas necessárias ausentes para cálculo do melhor intervalo.")
-        return None, None, 0.0 # Retorna 0.0 para o ganho
-
-    # Garante que não há NaNs nas colunas relevantes
+        logger.debug("DataFrame vazio ou colunas ausentes para _calcular_melhor_intervalo.")
+        return None, None, 0.0
     df_valid = df_intervalo.dropna(subset=[minutos_col, result_col])
     if df_valid.empty:
-        logger.warning("Nenhum dado válido após remover NaNs para cálculo do melhor intervalo.")
+        logger.debug("Nenhum dado válido após dropna para _calcular_melhor_intervalo.")
         return None, None, 0.0
 
-    # Obtém a lista única e ordenada de minutos onde ocorreram operações
-    minutos_unicos = sorted(df_valid[minutos_col].unique().astype(int))
+    # 1. Agrupar por minuto e somar resultados
+    soma_por_minuto = df_valid.groupby(minutos_col)[result_col].sum()
 
-    if not minutos_unicos:
-        logger.warning("Nenhum minuto único válido encontrado para calcular intervalo.")
-        return None, None, 0.0
+    # Garante que minutos sejam inteiros
+    soma_por_minuto.index = soma_por_minuto.index.astype(int)
 
-    # Itera por todos os possíveis intervalos (inicio, fim)
-    for i, inicio in enumerate(minutos_unicos):
-        # ganho_acumulado_intervalo = 0.0 # Reset para cada início - Não necessário com a soma abaixo
-        # Itera pelos possíveis fins a partir do início atual
-        for fim in minutos_unicos[i:]:
-            # Filtra o DataFrame original para o sub-intervalo [inicio, fim]
-            # É mais eficiente somar incrementalmente, mas filtrar é mais simples de implementar
-            # TODO: Otimizar se necessário, calculando soma incremental
-            df_sub_intervalo = df_valid[
-                (df_valid[minutos_col] >= inicio) & (df_valid[minutos_col] <= fim)
-            ]
+    # 2. Criar Series completa com todos os minutos no range, preenchendo com 0
+    #    Ajusta o range para incluir max_minuto
+    todos_minutos = pd.RangeIndex(start=min_minuto, stop=max_minuto + 1, name=minutos_col)
+    somas_completas = soma_por_minuto.reindex(todos_minutos, fill_value=0.0)
 
-            if not df_sub_intervalo.empty:
-                # Calcula a soma do resultado APENAS para este sub-intervalo [inicio, fim]
-                ganho_int = df_sub_intervalo[result_col].sum()
+    # 3. Algoritmo de Kadane modificado para encontrar o intervalo
+    max_soma_global = 0.0  # Começa com 0, pois um intervalo vazio tem soma 0
+    soma_atual = 0.0
+    melhor_inicio_global = None
+    melhor_fim_global = None
+    inicio_atual = min_minuto # Potencial início do intervalo atual
 
-                if pd.notna(ganho_int):
-                    # Compara com o máximo atual
-                    if primeiro_intervalo_valido or ganho_int > max_ganho:
-                        # Log detalhado opcional para debug
-                        # if not primeiro_intervalo_valido:
-                        #      logger.debug(f"  >>> Novo Melhor Intervalo! Sum={ganho_int:.2f} > Max={max_ganho:.2f}. Int:[{minutos_para_horario(inicio)}-{minutos_para_horario(fim)}]")
-                        max_ganho = ganho_int
-                        melhor_inicio = inicio
-                        melhor_fim = fim
-                        primeiro_intervalo_valido = False # Marca que já encontramos um intervalo válido
+    primeiro_positivo = True
 
-    if melhor_inicio is None:
-        logger.info("Nenhum intervalo com ganho válido encontrado.")
-        return None, None, 0.0 # Retorna 0.0 se nenhum intervalo foi achado
-    else:
-        # logger.info(f"Melhor intervalo encontrado: [{minutos_para_horario(melhor_inicio)}-{minutos_para_horario(melhor_fim)}], Ganho: {max_ganho:.2f}")
-        # Retorna o ganho máximo real encontrado, que pode ser negativo
-        return melhor_inicio, melhor_fim, max_ganho
+    for minuto, soma_minuto in somas_completas.items():
+        soma_atual += soma_minuto
 
+        if soma_atual > max_soma_global:
+            max_soma_global = soma_atual
+            melhor_inicio_global = inicio_atual
+            melhor_fim_global = minuto # Atualiza o fim para o minuto atual
+            if primeiro_positivo:
+                 logger.debug(f"  -> Primeiro intervalo positivo encontrado: [{minutos_para_horario(melhor_inicio_global)}-{minutos_para_horario(melhor_fim_global)}] Soma: {max_soma_global:.2f}")
+                 primeiro_positivo = False
+            else:
+                 logger.debug(f"  -> Novo melhor intervalo global: [{minutos_para_horario(melhor_inicio_global)}-{minutos_para_horario(melhor_fim_global)}] Soma: {max_soma_global:.2f}")
+
+
+        # Se a soma atual ficar negativa, ela não contribuirá positivamente
+        # para nenhum intervalo futuro que a inclua. Resetamos a soma
+        # e começamos a procurar um novo intervalo a partir do *próximo* minuto.
+        if soma_atual < 0:
+            soma_atual = 0
+            inicio_atual = minuto + 1 # Próximo minuto é o novo potencial início
+
+    # Se max_soma_global permaneceu 0 (ou negativo, o que não deveria acontecer com a lógica acima)
+    # significa que não houve intervalo com soma positiva. Retornamos 0.
+    if melhor_inicio_global is None:
+         logger.info("Nenhum intervalo com soma estritamente positiva encontrado.")
+         # Poderíamos retornar o intervalo com a menor perda, mas retornar 0 é mais simples.
+         return None, None, 0.0
+
+    # Garante que o minuto final seja retornado corretamente
+    # A lógica já atualiza melhor_fim_global quando max_soma_global é atualizado.
+
+    logger.info(f"Melhor intervalo (Otimizado): [{minutos_para_horario(melhor_inicio_global)}-{minutos_para_horario(melhor_fim_global)}], Ganho: {max_soma_global:.2f}")
+    return melhor_inicio_global, melhor_fim_global, max_soma_global
 
 # --- Funções de Geração de Gráficos Específicos ---
 
