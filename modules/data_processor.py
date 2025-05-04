@@ -6,7 +6,7 @@ consolidá-los e realizar cálculos e transformações iniciais.
 """
 import os
 import logging
-from typing import List, Tuple, Dict, Any, Optional, IO
+from typing import List, Tuple, Dict, Any, Optional, IO, Literal
 import pandas as pd
 import numpy as np
 import traceback # Para log detalhado de erros
