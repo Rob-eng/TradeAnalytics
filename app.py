@@ -9,7 +9,7 @@ import shutil
 import logging
 import traceback
 from flask import (
-    Flask, request, render_template, send_file, after_this_request, flash, redirect, url_for
+    Flask, request, render_template, send_file, after_this_request, flash, redirect, url_for, jsonify
 )
 from werkzeug.exceptions import RequestEntityTooLarge # Para tratar erro de tamanho de arquivo
 
@@ -267,33 +267,32 @@ def index():
             # Passa as configurações para o template poder usar MAX_FILE_SIZE_MB
             return render_template('index.html', MAX_FILE_SIZE_MB=MAX_FILE_SIZE_MB)
 
+    
     # --- Tratamento Genérico de Erros ---
     except RequestEntityTooLarge:
-        # Já tratado pelo errorhandler, mas pode chegar aqui em casos raros
-        logger.warning("Erro RequestEntityTooLarge pego no bloco try/except principal.")
-        # A mensagem flash e redirect já foram feitos pelo errorhandler
-        # Apenas garante a limpeza se o diretório foi criado
+        logger.warning(f"Upload excedeu o limite de {MAX_FILE_SIZE_MB}MB.")
         limpar_diretorio_seguro(request_report_dir)
-        return redirect(url_for('index'))
+        # Retorna JSON de erro em vez de flash/redirect
+        return jsonify({"error": f"Erro: O arquivo enviado é muito grande. O limite máximo é de {MAX_FILE_SIZE_MB}MB por requisição."}), 413 # 413 Payload Too Large
     except (ValueError, KeyError, IOError, FileNotFoundError) as app_err:
-        # Erros esperados da lógica da aplicação (validação, processamento)
         error_message = str(app_err)
-        logger.error(f"Erro conhecido na aplicação: {error_message}", exc_info=False) # Não loga traceback completo para estes
-        flash(f"Erro: {error_message}", 'error')
-        # Limpa o diretório temporário em caso de erro
+        logger.error(f"Erro conhecido na aplicação: {error_message}", exc_info=False)
         limpar_diretorio_seguro(request_report_dir)
-        return redirect(url_for('index')) # Redireciona para a página inicial
-    except Exception as e:
-        # Erros inesperados
-        error_details = traceback.format_exc() # Pega o traceback completo
+        # Retorna JSON de erro 400 (Bad Request)
+        return jsonify({"error": f"Erro: {error_message}"}), 400
+    except RuntimeError as pdf_err: # Erro específico da geração do PDF
+         error_message = str(pdf_err)
+         logger.critical(f"Erro CRÍTICO ao gerar PDF: {error_message}", exc_info=True)
+         limpar_diretorio_seguro(request_report_dir)
+         # Retorna JSON de erro 500 (Internal Server Error)
+         return jsonify({"error": f"Erro interno ao gerar o PDF: {error_message}. Consulte os logs."}), 500
+    except Exception as e: # Outros erros inesperados
+        error_details = traceback.format_exc()
         logger.error(f"Erro inesperado na aplicação: {e}", exc_info=True)
         logger.error(f"Detalhes do Erro:\n{error_details}")
-        flash(f"Erro interno inesperado ao processar a requisição: {str(e)}. Consulte os logs do servidor.", 'error')
-        # Limpa o diretório temporário em caso de erro grave
         limpar_diretorio_seguro(request_report_dir)
-        # Em produção, talvez retornar uma página de erro genérica (500)
-        # return render_template('error_500.html'), 500
-        return redirect(url_for('index')) # Redireciona para tentar novamente
+        # Retorna JSON de erro 500
+        return jsonify({"error": f"Erro interno inesperado: {str(e)}. Consulte os logs."}), 500
 
 
 # --- Ponto de Entrada da Aplicação ---
